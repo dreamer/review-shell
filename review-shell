@@ -1,0 +1,11 @@
+#!/usr/bin/env python3
+
+from sh import git
+
+
+def main():
+    git('--version', _out=print)
+
+
+if __name__ == "__main__":
+    main()
