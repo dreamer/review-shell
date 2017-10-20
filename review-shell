@@ -3,6 +3,7 @@
 from sh import file
 from sh import git
 from sh import shellcheck
+import re
 
 
 def print_z(*args):
@@ -18,6 +19,26 @@ def is_shell_script(path):
         or (mimetype(path) == 'text/x-shellscript')
 
 
+def extract_added_lines_ranges(diff_string):
+    prog = re.compile('@@ [^ ]+ \+(\d+),?(\d+)?')
+    for line in diff_string:
+        if not line.startswith('@@'):
+            continue
+        n, offset = prog.match(line).groups()
+        line_from = max(int(n), 1)
+        line_to = line_from + int(offset or 0)
+        yield (line_from, line_to)
+
+
+def added_lines(file):
+    out = git('diff', '-U0',
+              '--ignore-space-at-eol',
+              'HEAD~1',
+              file,
+              _tty_out=False)
+    return extract_added_lines_ranges(out)
+
+
 def list_files():
     out = git('diff', '-z',
               '--diff-filter=AMrcd',
@@ -31,6 +52,8 @@ def list_files():
 def main():
     shell_scripts = filter(is_shell_script, list_files())
     for f in shell_scripts:
+        print(f)
+        print(list(added_lines(f)))
         shellcheck(f, _out=print_z, _ok_code=[0, 1])
 
 
