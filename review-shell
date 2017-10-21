@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import collections
 import json
 import re
 
@@ -51,13 +52,44 @@ def list_files():
     return filter(None, out.split('\0'))
 
 
+def decorate_shellcheck(script_file):
+    findings = json.loads(shellcheck('--format=json',
+                                     script_file,
+                                     _ok_code=[0, 1]).strip())
+    if findings == []:
+        return []
+
+    warnings_list = list(findings)  # shallow copy
+    Range = collections.namedtuple('Range', ['start_line', 'end_line'])
+    added_fragments = list(added_lines(script_file))
+
+    for w in warnings_list:
+        w[u'new'] = False
+
+    while added_fragments and warnings_list:
+        w = warnings_list[0]
+        fragment = Range(*(added_fragments[0]))
+        warning = Range(w[u'line'], w[u'endLine'])
+
+        if fragment.end_line < warning.start_line:
+            added_fragments.pop(0)
+            continue
+
+        if warning.end_line < fragment.start_line:
+            warnings_list.pop(0)
+            continue
+
+        w[u'new'] = True
+        warnings_list.pop(0)
+
+    return findings
+
+
 def main():
     shell_scripts = filter(is_shell_script, list_files())
-    for f in shell_scripts:
-        print(f)
-        print(list(added_lines(f)))
-        j = json.loads(shellcheck('--format=json', f, _ok_code=[0, 1]).strip())
-        print(json.dumps(j, indent=2))
+    for s in shell_scripts:
+        r = decorate_shellcheck(s)
+        print(json.dumps(r, indent=2))
 
 
 if __name__ == "__main__":
