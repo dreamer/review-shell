@@ -85,11 +85,56 @@ def decorate_shellcheck(script_file):
     return findings
 
 
+def get_summary(report):
+    all_findings = 0
+    new_findings = 0
+    for finding in report:
+        is_new = finding[u'new']
+        all_findings += 1
+        if is_new:
+            new_findings += 1
+    if all_findings == 0:
+        return "ShellCheck found no issues in this file, good job. :)"
+    else:
+        return "This file has %d ShellCheck issues overall. " \
+               "%d of these issues were introduced in last commit." % (all_findings, new_findings)
+
+
+def format_gerrit_review(report):
+    comments = {}
+    for finding in report:
+        path = finding[u'file']
+
+        if not path in comments:
+            comments[path] = [{
+                u'line' : 0,
+                u'message' : get_summary(report)
+            }]
+
+        # msg should be:
+        # SC<code> <message>
+        # severity: <level>
+        # read more: https://github.com/koalaman/shellcheck/wiki/SC<code>
+
+        if finding[u'new']:
+            comment_input = {
+                u'line' : finding[u'line'],
+                u'message' : finding[u'message']
+            }
+            comments[path].append(comment_input)
+
+    review_input = {}
+    review_input[u'comments'] = comments
+    # return report
+    return review_input
+
+
 def main():
     shell_scripts = filter(is_shell_script, list_files())
     for s in shell_scripts:
-        r = decorate_shellcheck(s)
-        print(json.dumps(r, indent=2))
+        report = decorate_shellcheck(s)
+        review = format_gerrit_review(report)
+        print(json.dumps(review, indent=2))
 
 
 if __name__ == "__main__":
